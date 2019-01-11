@@ -63,7 +63,7 @@ var COMMON_WEB_FILES = [
 ];
 var MOZCENTRAL_DIFF_FILE = 'mozcentral.diff';
 
-var REPO = 'git@github.com:mozilla/pdf.js.git';
+var REPO = 'git@github.com:lpillonel/pdf.js.git';
 var DIST_REPO_URL = 'https://github.com/mozilla/pdfjs-dist';
 
 var builder = require('./external/builder/builder.js');
@@ -1227,7 +1227,7 @@ gulp.task('dist-pre', gulp.series('generic', 'components', 'image_decoders',
   rimraf.sync(path.join(DIST_DIR, '*'));
 
   // Rebuilding manifests
-  var DIST_NAME = 'pdfjs-dist';
+  var DIST_NAME = '@lpi/pdfjs-dist';
   var DIST_DESCRIPTION = 'Generic build of Mozilla\'s PDF.js library.';
   var DIST_KEYWORDS = ['Mozilla', 'pdf', 'pdf.js'];
   var DIST_HOMEPAGE = 'http://mozilla.github.io/pdf.js/';

@@ -961,7 +961,8 @@ class PDFPageProxy {
    */
   render({ canvasContext, viewport, intent = 'display', enableWebGL = false,
            renderInteractiveForms = false, transform = null, imageLayer = null,
-           canvasFactory = null, background = null, }) {
+           canvasFactory = null, background = null,
+           renderAnnotations = true, }) {
     const stats = this._stats;
     stats.time('Overall');
 
@@ -969,7 +970,7 @@ class PDFPageProxy {
     // this call to render.
     this.pendingCleanup = false;
 
-    const renderingIntent = (intent === 'print' ? 'print' : 'display');
+    const renderingIntent = intent;
     const canvasFactoryInstance = canvasFactory || new DOMCanvasFactory();
     const webGLContext = new WebGLContext({
       enable: enableWebGL,
@@ -993,6 +994,7 @@ class PDFPageProxy {
 
       stats.time('Page Request');
       this._transport.messageHandler.send('RenderPageRequest', {
+        renderAnnotations,
         pageIndex: this.pageNumber - 1,
         intent: renderingIntent,
         renderInteractiveForms: renderInteractiveForms === true,
