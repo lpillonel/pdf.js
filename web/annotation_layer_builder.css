@@ -37,6 +37,7 @@
 .annotationLayer .textAnnotation img {
   position: absolute;
   cursor: pointer;
+  left: 0;
 }
 
 .annotationLayer .textWidgetAnnotation input,
