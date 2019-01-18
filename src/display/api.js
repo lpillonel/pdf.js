@@ -961,8 +961,7 @@ class PDFPageProxy {
    */
   render({ canvasContext, viewport, intent = 'display', enableWebGL = false,
            renderInteractiveForms = false, transform = null, imageLayer = null,
-           canvasFactory = null, background = null,
-           renderAnnotations = true, }) {
+           canvasFactory = null, background = null, }) {
     const stats = this._stats;
     stats.time('Overall');
 
@@ -994,7 +993,6 @@ class PDFPageProxy {
 
       stats.time('Page Request');
       this._transport.messageHandler.send('RenderPageRequest', {
-        renderAnnotations,
         pageIndex: this.pageNumber - 1,
         intent: renderingIntent,
         renderInteractiveForms: renderInteractiveForms === true,

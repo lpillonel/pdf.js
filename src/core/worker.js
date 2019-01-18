@@ -585,7 +585,6 @@ var WorkerMessageHandler = {
           task,
           intent: data.intent,
           renderInteractiveForms: data.renderInteractiveForms,
-          renderAnnotations: data.renderAnnotations,
         }).then(function(operatorList) {
           finishWorkerTask(task);
 

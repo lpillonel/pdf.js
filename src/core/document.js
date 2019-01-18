@@ -34,7 +34,7 @@ const LETTER_SIZE_MEDIABOX = [0, 0, 612, 792];
 
 function isAnnotationRenderable(annotation, intent) {
   return (intent === 'display' && annotation.viewable) ||
-         (intent === 'thumbnail' && annotation.viewable) ||
+         (intent === 'annotate' && !annotation.editable) ||
          (intent === 'print' && annotation.printable);
 }
 
@@ -180,13 +180,7 @@ class Page {
     });
   }
 
-  getOperatorList({
-    handler,
-    task,
-    intent,
-    renderInteractiveForms,
-    renderAnnotations,
-  }) {
+  getOperatorList({ handler, task, intent, renderInteractiveForms, }) {
     const contentStreamPromise = this.pdfManager.ensure(this,
                                                         'getContentStream');
     const resourcesPromise = this.loadResources([
@@ -234,7 +228,7 @@ class Page {
     // page's operator list to render them.
     return Promise.all([
       pageListPromise,
-      renderAnnotations ? this._parsedAnnotations : [],
+      this._parsedAnnotations,
     ]).then(
         function([pageOpList, annotations]) {
       if (annotations.length === 0) {

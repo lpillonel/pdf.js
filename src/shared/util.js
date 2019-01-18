@@ -86,6 +86,13 @@ const AnnotationType = {
   REDACT: 26,
 };
 
+const EditableAnnotationType = [
+  AnnotationType.TEXT,
+  AnnotationType.SQUARE,
+  AnnotationType.STAMP,
+  AnnotationType.INK,
+];
+
 const AnnotationFlag = {
   INVISIBLE: 0x01,
   HIDDEN: 0x02,
@@ -1028,6 +1035,7 @@ export {
   AnnotationFieldFlag,
   AnnotationFlag,
   AnnotationType,
+  EditableAnnotationType,
   FontType,
   ImageKind,
   CMapCompressionType,

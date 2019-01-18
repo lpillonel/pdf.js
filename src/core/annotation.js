@@ -16,7 +16,7 @@
 
 import {
   AnnotationBorderStyleType, AnnotationFieldFlag, AnnotationFlag,
-  AnnotationType, getInheritableProperty, OPS, stringToBytes, stringToPDFString,
+  AnnotationType, EditableAnnotationType, getInheritableProperty, OPS, stringToBytes, stringToPDFString,
   Util, warn
 } from '../shared/util';
 import { Catalog, FileSpec, ObjectLoader } from './obj';
@@ -231,6 +231,13 @@ class Annotation {
       return false;
     }
     return this._isPrintable(this.flags);
+  }
+
+  /**
+   * @return {boolean}
+   */
+  get editable() {
+    return EditableAnnotationType.indexOf(this.data.annotationType) > -1;
   }
 
   /**
