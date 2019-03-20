@@ -15,12 +15,11 @@
 
 import {
   AbortException, assert, CMapCompressionType, createPromiseCapability,
-  FONT_IDENTITY_MATRIX, FormatError, getLookupTableFactory, IDENTITY_MATRIX,
-  info, isNum, isString, NativeImageDecoding, OPS, stringToPDFString,
-  TextRenderingMode, UNSUPPORTED_FEATURES, Util, warn
+  FONT_IDENTITY_MATRIX, FormatError, IDENTITY_MATRIX, info, isArrayEqual, isNum,
+  isString, NativeImageDecoding, OPS, stringToPDFString, TextRenderingMode,
+  UNSUPPORTED_FEATURES, Util, warn
 } from '../shared/util';
 import { CMapFactory, IdentityCMap } from './cmap';
-import { DecodeStream, Stream } from './stream';
 import {
   Dict, isCmd, isDict, isEOF, isName, isRef, isStream, Name
 } from './primitives';
@@ -41,11 +40,14 @@ import { getTilingPatternIR, Pattern } from './pattern';
 import { Lexer, Parser } from './parser';
 import { bidi } from './bidi';
 import { ColorSpace } from './colorspace';
+import { DecodeStream } from './stream';
 import { getGlyphsUnicode } from './glyphlist';
+import { getLookupTableFactory } from './core_utils';
 import { getMetrics } from './metrics';
 import { isPDFFunction } from './function';
 import { JpegStream } from './jpeg_stream';
 import { MurmurHash3_64 } from './murmurhash3';
+import { NativeImageDecoder } from './image_utils';
 import { OperatorList } from './operator_list';
 import { PDFImage } from './image';
 
@@ -57,67 +59,6 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
     nativeImageDecoderSupport: NativeImageDecoding.DECODE,
     ignoreErrors: false,
     isEvalSupported: true,
-  };
-
-  function NativeImageDecoder({ xref, resources, handler,
-                                forceDataSchema = false,
-                                pdfFunctionFactory, }) {
-    this.xref = xref;
-    this.resources = resources;
-    this.handler = handler;
-    this.forceDataSchema = forceDataSchema;
-    this.pdfFunctionFactory = pdfFunctionFactory;
-  }
-  NativeImageDecoder.prototype = {
-    canDecode(image) {
-      return image instanceof JpegStream &&
-             NativeImageDecoder.isDecodable(image, this.xref, this.resources,
-                                            this.pdfFunctionFactory);
-    },
-    decode(image) {
-      // For natively supported JPEGs send them to the main thread for decoding.
-      var dict = image.dict;
-      var colorSpace = dict.get('ColorSpace', 'CS');
-      colorSpace = ColorSpace.parse(colorSpace, this.xref, this.resources,
-                                    this.pdfFunctionFactory);
-
-      return this.handler.sendWithPromise('JpegDecode', [
-        image.getIR(this.forceDataSchema), colorSpace.numComps
-      ]).then(function({ data, width, height, }) {
-        return new Stream(data, 0, data.length, image.dict);
-      });
-    },
-  };
-  /**
-   * Checks if the image can be decoded and displayed by the browser without any
-   * further processing such as color space conversions.
-   */
-  NativeImageDecoder.isSupported = function(image, xref, res,
-                                            pdfFunctionFactory) {
-    var dict = image.dict;
-    if (dict.has('DecodeParms') || dict.has('DP')) {
-      return false;
-    }
-    var cs = ColorSpace.parse(dict.get('ColorSpace', 'CS'), xref, res,
-                              pdfFunctionFactory);
-    // isDefaultDecode() of DeviceGray and DeviceRGB needs no `bpc` argument.
-    return (cs.name === 'DeviceGray' || cs.name === 'DeviceRGB') &&
-           cs.isDefaultDecode(dict.getArray('Decode', 'D'));
-  };
-  /**
-   * Checks if the image can be decoded by the browser.
-   */
-  NativeImageDecoder.isDecodable = function(image, xref, res,
-                                            pdfFunctionFactory) {
-    var dict = image.dict;
-    if (dict.has('DecodeParms') || dict.has('DP')) {
-      return false;
-    }
-    var cs = ColorSpace.parse(dict.get('ColorSpace', 'CS'), xref, res,
-                              pdfFunctionFactory);
-    const bpc = dict.get('BitsPerComponent', 'BPC') || 1;
-    return (cs.numComps === 1 || cs.numComps === 3) &&
-           cs.isDefaultDecode(dict.getArray('Decode', 'D'), bpc);
   };
 
   function PartialEvaluator({ pdfManager, xref, handler, pageIndex, idFactory,
@@ -392,8 +333,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           imageIsFromDecodeStream: image instanceof DecodeStream,
           inverseDecode: (!!decode && decode[0] > 0),
         });
-        imgData.cached = true;
+        imgData.cached = !!cacheKey;
         args = [imgData];
+
         operatorList.addOp(OPS.paintImageMaskXObject, args);
         if (cacheKey) {
           imageCache[cacheKey] = {
@@ -1323,13 +1265,11 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                    0, textState.fontSize,
                    0, textState.textRise];
 
-        if (font.isType3Font &&
-            textState.fontMatrix !== FONT_IDENTITY_MATRIX &&
-            textState.fontSize === 1) {
-          var glyphHeight = font.bbox[3] - font.bbox[1];
+        if (font.isType3Font && textState.fontSize <= 1 &&
+            !isArrayEqual(textState.fontMatrix, FONT_IDENTITY_MATRIX)) {
+          const glyphHeight = font.bbox[3] - font.bbox[1];
           if (glyphHeight > 0) {
-            glyphHeight = glyphHeight * textState.fontMatrix[3];
-            tsm[3] *= glyphHeight;
+            tsm[3] *= (glyphHeight * textState.fontMatrix[3]);
           }
         }
 

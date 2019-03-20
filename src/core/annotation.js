@@ -16,12 +16,13 @@
 
 import {
   AnnotationBorderStyleType, AnnotationFieldFlag, AnnotationFlag,
-  AnnotationType, EditableAnnotationType, getInheritableProperty, OPS, stringToBytes, stringToPDFString,
-  Util, warn
+  AnnotationType, EditableAnnotationType, OPS, stringToBytes,
+  stringToPDFString, Util, warn
 } from '../shared/util';
 import { Catalog, FileSpec, ObjectLoader } from './obj';
 import { Dict, isDict, isName, isRef, isStream } from './primitives';
 import { ColorSpace } from './colorspace';
+import { getInheritableProperty } from './core_utils';
 import { OperatorList } from './operator_list';
 import { Stream } from './stream';
 
