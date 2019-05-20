@@ -344,6 +344,7 @@ function getDocument(src) {
         networkStream = new PDFDataTransportStream({
           length: params.length,
           initialData: params.initialData,
+          progressiveDone: params.progressiveDone,
           disableRange: params.disableRange,
           disableStream: params.disableStream,
         }, rangeTransport);
@@ -389,6 +390,7 @@ function _fetchDocument(worker, source, pdfDataRangeTransport, docId) {
   if (pdfDataRangeTransport) {
     source.length = pdfDataRangeTransport.length;
     source.initialData = pdfDataRangeTransport.initialData;
+    source.progressiveDone = pdfDataRangeTransport.progressiveDone;
   }
   return worker.messageHandler.sendWithPromise('GetDocRequest', {
     docId,
@@ -513,15 +515,18 @@ const PDFDocumentLoadingTask = (function PDFDocumentLoadingTaskClosure() {
  * Abstract class to support range requests file loading.
  * @param {number} length
  * @param {Uint8Array} initialData
+ * @param {boolean} progressiveDone
  */
 class PDFDataRangeTransport {
-  constructor(length, initialData) {
+  constructor(length, initialData, progressiveDone = false) {
     this.length = length;
     this.initialData = initialData;
+    this.progressiveDone = progressiveDone;
 
     this._rangeListeners = [];
     this._progressListeners = [];
     this._progressiveReadListeners = [];
+    this._progressiveDoneListeners = [];
     this._readyCapability = createPromiseCapability();
   }
 
@@ -537,16 +542,20 @@ class PDFDataRangeTransport {
     this._progressiveReadListeners.push(listener);
   }
 
+  addProgressiveDoneListener(listener) {
+    this._progressiveDoneListeners.push(listener);
+  }
+
   onDataRange(begin, chunk) {
     for (const listener of this._rangeListeners) {
       listener(begin, chunk);
     }
   }
 
-  onDataProgress(loaded) {
+  onDataProgress(loaded, total) {
     this._readyCapability.promise.then(() => {
       for (const listener of this._progressListeners) {
-        listener(loaded);
+        listener(loaded, total);
       }
     });
   }
@@ -555,6 +564,14 @@ class PDFDataRangeTransport {
     this._readyCapability.promise.then(() => {
       for (const listener of this._progressiveReadListeners) {
         listener(chunk);
+      }
+    });
+  }
+
+  onDataProgressiveDone() {
+    this._readyCapability.promise.then(() => {
+      for (const listener of this._progressiveDoneListeners) {
+        listener();
       }
     });
   }
@@ -643,10 +660,26 @@ class PDFDocumentProxy {
 
   /**
    * @return {Promise} A promise that is resolved with a {string} containing
+   *   the page layout name.
+   */
+  getPageLayout() {
+    return this._transport.getPageLayout();
+  }
+
+  /**
+   * @return {Promise} A promise that is resolved with a {string} containing
    *   the page mode name.
    */
   getPageMode() {
     return this._transport.getPageMode();
+  }
+
+  /**
+   * @return {Promise} A promise that is resolved with an {Object} containing
+   *   the viewer preferences.
+   */
+  getViewerPreferences() {
+    return this._transport.getViewerPreferences();
   }
 
   /**
@@ -795,7 +828,7 @@ class PDFDocumentProxy {
  *
  * @typedef {Object} TextContent
  * @property {array} items - array of {@link TextItem}
- * @property {Object} styles - {@link TextStyles} objects, indexed by font name.
+ * @property {Object} styles - {@link TextStyle} objects, indexed by font name.
  */
 
 /**
@@ -1814,6 +1847,21 @@ class WorkerTransport {
       const rangeReader =
         this._networkStream.getRangeReader(data.begin, data.end);
 
+      // When streaming is enabled, it's possible that the data requested here
+      // has already been fetched via the `_fullRequestReader` implementation.
+      // However, given that the PDF data is loaded asynchronously on the
+      // main-thread and then sent via `postMessage` to the worker-thread,
+      // it may not have been available during parsing (hence the attempt to
+      // use range requests here).
+      //
+      // To avoid wasting time and resources here, we'll thus *not* dispatch
+      // range requests if the data was already loaded but has not been sent to
+      // the worker-thread yet (which will happen via the `_fullRequestReader`).
+      if (!rangeReader) {
+        sink.close();
+        return;
+      }
+
       sink.onPull = () => {
         rangeReader.read().then(function({ value, done, }) {
           if (done) {
@@ -1963,6 +2011,7 @@ class WorkerTransport {
           });
           break;
         case 'FontPath':
+        case 'FontType3Res':
           this.commonObjs.resolve(id, exportedData);
           break;
         default:
@@ -1972,13 +2021,14 @@ class WorkerTransport {
 
     messageHandler.on('obj', function(data) {
       if (this.destroyed) {
-        return; // Ignore any pending requests if the worker was terminated.
+        // Ignore any pending requests if the worker was terminated.
+        return undefined;
       }
 
       const [id, pageIndex, type, imageData] = data;
       const pageProxy = this.pageCache[pageIndex];
       if (pageProxy.objs.has(id)) {
-        return;
+        return undefined;
       }
 
       switch (type) {
@@ -2015,6 +2065,7 @@ class WorkerTransport {
         default:
           throw new Error(`Got unknown object type ${type}`);
       }
+      return undefined;
     }, this);
 
     messageHandler.on('DocProgress', function(data) {
@@ -2198,12 +2249,20 @@ class WorkerTransport {
     return this.messageHandler.sendWithPromise('GetPageLabels', null);
   }
 
+  getPageLayout() {
+    return this.messageHandler.sendWithPromise('GetPageLayout', null);
+  }
+
   getPageMode() {
     return this.messageHandler.sendWithPromise('GetPageMode', null);
   }
 
+  getViewerPreferences() {
+    return this.messageHandler.sendWithPromise('GetViewerPreferences', null);
+  }
+
   getOpenActionDestination() {
-    return this.messageHandler.sendWithPromise('getOpenActionDestination',
+    return this.messageHandler.sendWithPromise('GetOpenActionDestination',
                                                null);
   }
 

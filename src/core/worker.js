@@ -517,11 +517,19 @@ var WorkerMessageHandler = {
       }
     );
 
+    handler.on('GetPageLayout', function wphSetupGetPageLayout(data) {
+      return pdfManager.ensureCatalog('pageLayout');
+    });
+
     handler.on('GetPageMode', function wphSetupGetPageMode(data) {
       return pdfManager.ensureCatalog('pageMode');
     });
 
-    handler.on('getOpenActionDestination', function(data) {
+    handler.on('GetViewerPreferences', function(data) {
+      return pdfManager.ensureCatalog('viewerPreferences');
+    });
+
+    handler.on('GetOpenActionDestination', function(data) {
       return pdfManager.ensureCatalog('openActionDestination');
     });
 
